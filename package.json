@@ -1,0 +1,23 @@
+{
+  "name": "shopease-lab-phase",
+  "version": "1.0.0",
+  "description": "ShopEase - Full-Stack E-Commerce Platform (MERN) - GoMyCode Lab Phase",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node tests.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.7.0"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^9.4.1",
+    "supertest": "^7.0.0"
+  },
+  "license": "ISC"
+}
