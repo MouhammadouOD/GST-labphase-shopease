@@ -56,14 +56,22 @@ regressions that break the handshake with Atlas's TLS termination, while
 Node's even-numbered LTS releases (18.x/20.x/22.x) are the versions Atlas
 and the MongoDB Node driver are actually tested against.
 
-Fix applied: pinned `"engines": {"node": "20.x"}` in `package.json` so Render
-provisions an LTS Node instead of whatever is currently the bleeding-edge
-default. **Not yet re-verified by a successful redeploy** — if this specific
-error recurs after redeploying with Node 20.x, the next things to check are,
-in order: (1) Atlas Network Access list actually includes Render's egress
-(or `0.0.0.0/0` for a free-tier project), (2) the `MONGO_URI` on Render is
-copied byte-for-byte from Atlas with the password URL-encoded if it contains
-`@`, `:`, `/`, or `%`.
+Fix applied: pinned `"engines": {"node": "20.x"}` in `package.json`.
+**Verified by redeploy on 07/11/2026, and this hypothesis was wrong**: Render
+correctly used Node 20.20.2, and the exact same TLS alert recurred, from the
+exact same 3 Atlas shard servers, byte-for-byte identical. Node/OpenSSL
+version was never the cause — ruled out.
+
+**Real cause, almost certainly**: Atlas's Network Access (IP whitelist) does
+not include Render's outbound IP. Mongoose's own error message says this
+directly ("trying to access the database from an IP that isn't
+whitelisted"), and an IP rejection on Atlas's shared-tier proxy layer can
+surface as a TLS-level alert (what we're seeing) rather than a plain
+connection refusal. **Action needed on the Atlas dashboard, not fixable from
+this repo**: Atlas → Network Access → Add IP Address → `0.0.0.0/0` (Render's
+IP isn't static, so a specific IP won't work reliably). If that doesn't fix
+it, double-check `MONGO_URI` on Render is copied byte-for-byte from Atlas
+with the password URL-encoded if it contains `@`, `:`, `/`, or `%`.
 
 ## 4. Post-deploy checklist
 
