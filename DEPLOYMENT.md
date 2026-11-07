@@ -45,6 +45,26 @@ falls back to it for client-side routes. No separate frontend host needed.
    so client-side routes like `/products/:id` work on a direct link or
    refresh.
 
+## Troubleshooting: `tlsv1 alert internal error` connecting to Atlas (seen 07/11/2026)
+
+First real deploy attempt on Render failed at startup with a Mongoose/MongoDB
+driver TLS handshake error against the Atlas cluster (`SSL routines:
+ssl3_read_bytes:tlsv1 alert internal error`), logged as Node.js **v24.22.1**
+(Render's current default, not an LTS release). This is a known class of
+issue: newer, non-LTS Node/OpenSSL builds have had TLS session-handling
+regressions that break the handshake with Atlas's TLS termination, while
+Node's even-numbered LTS releases (18.x/20.x/22.x) are the versions Atlas
+and the MongoDB Node driver are actually tested against.
+
+Fix applied: pinned `"engines": {"node": "20.x"}` in `package.json` so Render
+provisions an LTS Node instead of whatever is currently the bleeding-edge
+default. **Not yet re-verified by a successful redeploy** — if this specific
+error recurs after redeploying with Node 20.x, the next things to check are,
+in order: (1) Atlas Network Access list actually includes Render's egress
+(or `0.0.0.0/0` for a free-tier project), (2) the `MONGO_URI` on Render is
+copied byte-for-byte from Atlas with the password URL-encoded if it contains
+`@`, `:`, `/`, or `%`.
+
 ## 4. Post-deploy checklist
 
 - Confirm `GET /api/health` on the deployed backend returns `{"ok":true}`.
