@@ -1,10 +1,9 @@
 # Deployment plan
 
-This project has not been deployed to a live, public URL. Doing so requires
-creating real accounts on third-party services (a database host, an app
-host), which is a manual step for whoever runs this project to carry out
-themselves, not something to do automatically. This document describes the
-exact steps to deploy it.
+**Deployed 07/11/2026**: https://gst-labphase-shopease.onrender.com/ — backend
+live on Render, MongoDB Atlas connected. This document describes the steps
+taken and the two real issues hit along the way (both fixed, see
+Troubleshooting below).
 
 ## 1. Database: MongoDB Atlas
 
@@ -17,7 +16,7 @@ exact steps to deploy it.
 
 1. Push this repository to GitHub (already done).
 2. Create a new Web Service on Render, pointing at this repo.
-3. Build command: `npm install`. Start command: `npm start`.
+3. Build command: `npm install && npm run build` (the root `build` script installs and builds `client/` too — see step 3). Start command: `npm start`.
 4. Environment variables:
    - `MONGO_URI` - the Atlas connection string from step 1.
    - `JWT_SECRET` - a long random string (generate with e.g. `openssl rand -hex 32`); never reuse the local dev placeholder from `.env.example`.
@@ -28,11 +27,13 @@ exact steps to deploy it.
 
 Two options:
 
-**Option A - serve the frontend from the same backend (simplest):**
-Run `npm run build` inside `client/` as part of the Render build step
-(`npm install && npm run build --prefix client`) so `client/dist` exists in
-the deployed instance; `server.js` already serves it as static files and
-falls back to it for client-side routes. No separate frontend host needed.
+**Option A - serve the frontend from the same backend (simplest, chosen here):**
+The root `package.json` has a `build` script
+(`npm install --prefix client && npm run build --prefix client`) so setting
+Render's build command to `npm install && npm run build` produces
+`client/dist` in the deployed instance; `server.js` already serves it as
+static files and falls back to it for client-side routes. No separate
+frontend host needed.
 
 **Option B - separate static host (Vercel/Netlify):**
 1. Deploy the `client/` folder to Vercel or Netlify as a static site (build
@@ -62,16 +63,28 @@ correctly used Node 20.20.2, and the exact same TLS alert recurred, from the
 exact same 3 Atlas shard servers, byte-for-byte identical. Node/OpenSSL
 version was never the cause — ruled out.
 
-**Real cause, almost certainly**: Atlas's Network Access (IP whitelist) does
-not include Render's outbound IP. Mongoose's own error message says this
-directly ("trying to access the database from an IP that isn't
-whitelisted"), and an IP rejection on Atlas's shared-tier proxy layer can
-surface as a TLS-level alert (what we're seeing) rather than a plain
-connection refusal. **Action needed on the Atlas dashboard, not fixable from
-this repo**: Atlas → Network Access → Add IP Address → `0.0.0.0/0` (Render's
-IP isn't static, so a specific IP won't work reliably). If that doesn't fix
-it, double-check `MONGO_URI` on Render is copied byte-for-byte from Atlas
-with the password URL-encoded if it contains `@`, `:`, `/`, or `%`.
+**Real cause, confirmed**: Atlas's Network Access (IP whitelist) did not
+include Render's outbound IP. Adding `0.0.0.0/0` to Atlas → Network Access
+fixed it — the next redeploy connected successfully (`ShopEase API
+listening on port ...`, and `GET /` responded instead of hanging/erroring on
+`mongoose.connect`).
+
+## Troubleshooting: `{"error":"Not found. Run npm run build in client/..."}` on the live URL (seen 07/11/2026)
+
+Once the database connected, hitting the live URL returned this JSON
+instead of the site — `server.js`'s static-file fallback explicitly produces
+this message when `client/dist` doesn't exist. Cause: Render's build command
+was just `npm install`, which only installs the root (backend) dependencies
+and never runs `vite build` inside `client/`.
+
+Fix applied: added a root `build` script
+(`npm install --prefix client && npm run build --prefix client`, see step 3
+Option A above). Render's build command needs to be `npm install && npm run
+build` (not just `npm install`) for this to take effect on the next deploy.
+Verified locally: deleted `client/dist`, ran `npm run build` from the repo
+root, confirmed it regenerates `client/dist`, then confirmed with a direct
+request against the exported Express app (no server needed) that `GET /`
+returns `200` with real HTML instead of the 404 JSON fallback.
 
 ## 4. Post-deploy checklist
 
